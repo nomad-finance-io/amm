@@ -1,0 +1,15 @@
+# Used by `docker build -f bot/Dockerfile .` from the repo root.
+# Keep the build context small.
+.git/
+target/
+**/target/
+node_modules/
+infra/cdk.out/
+.anchor/
+.yarn/
+test-ledger/
+tests/
+docs/
+client/target/
+programs/*/target/
+bot/target/

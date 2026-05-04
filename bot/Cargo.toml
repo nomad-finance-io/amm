@@ -1,0 +1,36 @@
+[workspace]
+
+[package]
+name = "bot"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "time", "sync"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Solana / Anchor
+solana-sdk = "2.3.0"
+solana-client = "2.3.0"
+anchor-client = "0.32.1"
+anchor-lang = "0.32.1"
+
+# Path deps from the parent repo (separate workspaces — these come in as
+# external path dependencies, not workspace members).
+client = { path = "../client" }
+nomad-amm = { path = "../programs/cp-swap", features = ["client", "no-entrypoint"] }
+
+# Pyth Lazer (no solana deps, no version conflict with anchor-lang 0.32.1).
+pyth-lazer-client = "25"
+pyth-lazer-protocol = "0.40"
+
+# Misc
+bs58 = "0.5"
+thiserror = "1"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

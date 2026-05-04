@@ -1,0 +1,17 @@
+
+.anchor
+.DS_Store
+target
+**/*.rs.bk
+node_modules
+test-ledger
+.vscode
+.yarn
+Makefile
+.idea
+CLAUDE.md
+
+# Program keypairs — never commit
+NMDFi*.json
+*-keypair.json
+.env*
