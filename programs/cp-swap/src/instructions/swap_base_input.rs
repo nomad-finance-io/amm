@@ -76,11 +76,7 @@ pub struct Swap<'info> {
     pub observation_state: AccountLoader<'info, ObservationState>,
 }
 
-pub fn swap_base_input(
-    ctx: Context<Swap>,
-    amount_in: u64,
-    minimum_amount_out: u64,
-) -> Result<()> {
+pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Result<()> {
     // One Clock sysvar fetch — reused for the pool open-time check, the
     // observation update, and `recent_epoch` below.
     let clock = Clock::get()?;
@@ -130,8 +126,7 @@ pub fn swap_base_input(
     let (inventory_imbalance_bps, inventory_skew_bps, bid_mantissa, ask_mantissa) =
         if pool_state.inventory_skew_enabled != 0 {
             // Mid-price for the imbalance valuation: average of cached bid/ask.
-            let mid_mantissa =
-                ((cached_bid as i128 + cached_ask as i128) / 2) as i64;
+            let mid_mantissa = ((cached_bid as i128 + cached_ask as i128) / 2) as i64;
             let (mid_num, mid_den) = pyth_price_to_raw_fraction(
                 mid_mantissa,
                 cached_exponent,

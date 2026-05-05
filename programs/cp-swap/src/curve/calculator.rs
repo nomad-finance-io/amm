@@ -1,8 +1,6 @@
 //! Swap calculations
 
-use crate::curve::{
-    constant_product::ConstantProductCurve, fees::Fees, oracle_curve::OracleCurve,
-};
+use crate::curve::{constant_product::ConstantProductCurve, fees::Fees, oracle_curve::OracleCurve};
 use anchor_lang::prelude::*;
 use {crate::error::ErrorCode, std::fmt::Debug};
 
@@ -114,8 +112,13 @@ impl CurveCalculator {
         let trade_fee: u128;
 
         let input_amount_less_fees = if is_creator_fee_on_input {
-            let total_fee = Fees::trading_fee(input_amount, trade_fee_rate + creator_fee_rate)?;
-            creator_fee = Fees::split_creator_fee(total_fee, trade_fee_rate, creator_fee_rate)?;
+            let total_fee_rate = trade_fee_rate.checked_add(creator_fee_rate)?;
+            let total_fee = Fees::trading_fee(input_amount, total_fee_rate)?;
+            creator_fee = if total_fee_rate == 0 {
+                0
+            } else {
+                Fees::split_creator_fee(total_fee, trade_fee_rate, creator_fee_rate)?
+            };
             trade_fee = total_fee - creator_fee;
             input_amount.checked_sub(total_fee)?
         } else {
@@ -185,13 +188,15 @@ impl CurveCalculator {
         )?;
 
         let input_amount = if is_creator_fee_on_input {
-            let input_amount_with_fee = Fees::calculate_pre_fee_amount(
-                input_amount_swapped,
-                trade_fee_rate + creator_fee_rate,
-            )
-            .unwrap();
+            let total_fee_rate = trade_fee_rate.checked_add(creator_fee_rate)?;
+            let input_amount_with_fee =
+                Fees::calculate_pre_fee_amount(input_amount_swapped, total_fee_rate).unwrap();
             let total_fee = input_amount_with_fee - input_amount_swapped;
-            creator_fee = Fees::split_creator_fee(total_fee, trade_fee_rate, creator_fee_rate)?;
+            creator_fee = if total_fee_rate == 0 {
+                0
+            } else {
+                Fees::split_creator_fee(total_fee, trade_fee_rate, creator_fee_rate)?
+            };
             trade_fee = total_fee - creator_fee;
             input_amount_with_fee
         } else {
@@ -401,5 +406,31 @@ pub mod test {
                         -> (u64, u64) {
            (total, intermediate)
        }
+    }
+
+    #[test]
+    fn swap_base_input_allows_zero_total_fee_when_creator_fee_is_on_input() {
+        let result = CurveCalculator::swap_base_input(
+            121_240,
+            694_444,
+            5_000_000,
+            0,
+            0,
+            0,
+            0,
+            true,
+            72_528_925_721,
+            10_000_000_000,
+        )
+        .expect("zero-fee pools should still quote swaps");
+
+        assert_eq!(result.input_amount, 121_240);
+        assert_eq!(result.trade_fee, 0);
+        assert_eq!(result.creator_fee, 0);
+        assert_eq!(result.protocol_fee, 0);
+        assert_eq!(result.fund_fee, 0);
+        assert_eq!(result.new_input_vault_amount, 815_684);
+        assert_eq!(result.output_amount, 748_231);
+        assert_eq!(result.new_output_vault_amount, 4_251_769);
     }
 }

@@ -260,11 +260,10 @@ fn main() -> Result<()> {
             let [pool_account, token_0_vault_account, token_1_vault_account] =
                 array_ref![rsps, 0, 3];
             // docode account
-            let pool_state =
-                utils::deserialize_anchor_account::<nomad_amm::states::PoolState>(
-                    pool_account.as_ref().unwrap(),
-                )
-                .unwrap();
+            let pool_state = utils::deserialize_anchor_account::<nomad_amm::states::PoolState>(
+                pool_account.as_ref().unwrap(),
+            )
+            .unwrap();
             let token_0_vault_info = unpack_token(&token_0_vault_account.as_ref().unwrap().data)?;
             let token_1_vault_info = unpack_token(&token_1_vault_account.as_ref().unwrap().data)?;
 
@@ -366,11 +365,10 @@ fn main() -> Result<()> {
             let [pool_account, token_0_vault_account, token_1_vault_account] =
                 array_ref![rsps, 0, 3];
             // docode account
-            let pool_state =
-                utils::deserialize_anchor_account::<nomad_amm::states::PoolState>(
-                    pool_account.as_ref().unwrap(),
-                )
-                .unwrap();
+            let pool_state = utils::deserialize_anchor_account::<nomad_amm::states::PoolState>(
+                pool_account.as_ref().unwrap(),
+            )
+            .unwrap();
             let token_0_vault_info = unpack_token(&token_0_vault_account.as_ref().unwrap().data)?;
             let token_1_vault_info = unpack_token(&token_1_vault_account.as_ref().unwrap().data)?;
 
@@ -492,11 +490,10 @@ fn main() -> Result<()> {
             let [pool_account, amm_config_account, token_0_vault_account, token_1_vault_account, token_0_mint_account, token_1_mint_account, user_input_token_account] =
                 array_ref![rsps, 0, 7];
             // docode account
-            let pool_state =
-                utils::deserialize_anchor_account::<nomad_amm::states::PoolState>(
-                    pool_account.as_ref().unwrap(),
-                )
-                .unwrap();
+            let pool_state = utils::deserialize_anchor_account::<nomad_amm::states::PoolState>(
+                pool_account.as_ref().unwrap(),
+            )
+            .unwrap();
             let amm_config_state = deserialize_anchor_account::<nomad_amm::states::AmmConfig>(
                 amm_config_account.as_ref().unwrap(),
             )?;
@@ -654,11 +651,10 @@ fn main() -> Result<()> {
             let [pool_account, amm_config_account, token_0_vault_account, token_1_vault_account, token_0_mint_account, token_1_mint_account, user_input_token_account] =
                 array_ref![rsps, 0, 7];
             // docode account
-            let pool_state =
-                utils::deserialize_anchor_account::<nomad_amm::states::PoolState>(
-                    pool_account.as_ref().unwrap(),
-                )
-                .unwrap();
+            let pool_state = utils::deserialize_anchor_account::<nomad_amm::states::PoolState>(
+                pool_account.as_ref().unwrap(),
+            )
+            .unwrap();
             let amm_config_state = deserialize_anchor_account::<nomad_amm::states::AmmConfig>(
                 amm_config_account.as_ref().unwrap(),
             )?;

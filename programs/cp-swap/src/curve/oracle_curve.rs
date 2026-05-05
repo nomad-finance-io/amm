@@ -157,9 +157,7 @@ fn imbalance_bps_u256(
         (value_1 - value_0, -1i32)
     };
 
-    let magnitude = diff
-        .checked_mul(U256::from(10_000u64))?
-        .checked_div(sum)?;
+    let magnitude = diff.checked_mul(U256::from(10_000u64))?.checked_div(sum)?;
 
     let magnitude = magnitude.as_u64().min(10_000) as i32;
     Some(sign * magnitude)
@@ -181,9 +179,9 @@ pub fn compute_inventory_skew_bps(
         return 0;
     }
     let excess = magnitude - deadzone; // in basis points of imbalance
-    // skew = excess / 100 * bps_per_pct  (1 pct = 100 bps of imbalance)
-    let skew_mag = ((excess as u64).saturating_mul(bps_per_pct as u64) / 100)
-        .min(max_bps as u64) as i32;
+                                       // skew = excess / 100 * bps_per_pct  (1 pct = 100 bps of imbalance)
+    let skew_mag =
+        ((excess as u64).saturating_mul(bps_per_pct as u64) / 100).min(max_bps as u64) as i32;
     // Sign-flip: token_0 surplus (imbalance > 0) → canonical DOWN → negative skew.
     if imbalance_bps > 0 {
         -skew_mag
@@ -547,7 +545,10 @@ mod tests {
         // r0 * canonical_num ≈ 2^191 → fast path overflow → U256 fallback engages.
         let imb = compute_inventory_imbalance_bps(r0, r1, canonical_num, canonical_den).unwrap();
         // value_0 ≈ r0 * canonical_num >> r1, so imbalance should be ~+10_000.
-        assert!(imb > 9_000, "expected near-saturation positive imbalance, got {imb}");
+        assert!(
+            imb > 9_000,
+            "expected near-saturation positive imbalance, got {imb}"
+        );
     }
 
     #[test]
@@ -602,12 +603,18 @@ mod tests {
     #[test]
     fn shift_mantissa_up_by_positive_bps() {
         // 100 bps = +1% → mantissa 16_000_000_000 → 16_160_000_000
-        assert_eq!(shift_mantissa_by_signed_bps(16_000_000_000, 100), Some(16_160_000_000));
+        assert_eq!(
+            shift_mantissa_by_signed_bps(16_000_000_000, 100),
+            Some(16_160_000_000)
+        );
     }
 
     #[test]
     fn shift_mantissa_down_by_negative_bps() {
-        assert_eq!(shift_mantissa_by_signed_bps(16_000_000_000, -100), Some(15_840_000_000));
+        assert_eq!(
+            shift_mantissa_by_signed_bps(16_000_000_000, -100),
+            Some(15_840_000_000)
+        );
     }
 
     #[test]

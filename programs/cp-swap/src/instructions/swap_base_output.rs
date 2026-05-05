@@ -58,8 +58,7 @@ pub fn swap_base_output(
     // swap_base_input for the full reasoning; logic here is identical.
     let (inventory_imbalance_bps, inventory_skew_bps, bid_mantissa, ask_mantissa) =
         if pool_state.inventory_skew_enabled != 0 {
-            let mid_mantissa =
-                ((cached_bid as i128 + cached_ask as i128) / 2) as i64;
+            let mid_mantissa = ((cached_bid as i128 + cached_ask as i128) / 2) as i64;
             let (mid_num, mid_den) = pyth_price_to_raw_fraction(
                 mid_mantissa,
                 cached_exponent,

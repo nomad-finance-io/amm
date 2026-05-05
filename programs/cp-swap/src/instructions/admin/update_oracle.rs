@@ -26,7 +26,10 @@ pub fn update_pool_oracle(
     price_exponent: i16,
     dynamic_fee_rate: u64,
 ) -> Result<()> {
-    require!(effective_bid_mantissa > 0, ErrorCode::InvalidEffectiveSpread);
+    require!(
+        effective_bid_mantissa > 0,
+        ErrorCode::InvalidEffectiveSpread
+    );
     require!(
         effective_ask_mantissa >= effective_bid_mantissa,
         ErrorCode::BidNotLessThanAsk

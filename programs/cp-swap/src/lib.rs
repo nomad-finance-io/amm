@@ -360,11 +360,7 @@ pub mod nomad_amm {
     /// * `max_amount_in` -  input amount prevents excessive slippage
     /// * `amount_out` -  amount of output token
     ///
-    pub fn swap_base_output(
-        ctx: Context<Swap>,
-        max_amount_in: u64,
-        amount_out: u64,
-    ) -> Result<()> {
+    pub fn swap_base_output(ctx: Context<Swap>, max_amount_in: u64, amount_out: u64) -> Result<()> {
         instructions::swap_base_output(ctx, max_amount_in, amount_out)
     }
 }
