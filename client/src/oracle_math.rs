@@ -6,10 +6,10 @@
 //! be linked into a Rust bot via `client = { path = "../client" }`.
 //!
 //! Pipeline:
-//!   1. `compute_dynamic_min_spread_bps` widens the configured floor by
-//!      payload age and Pyth confidence.
+//!   1. `compute_confidence_adjusted_min_spread_bps` widens the configured
+//!      floor by Pyth confidence.
 //!   2. `compute_effective_bid_ask_mantissas` derives bid / ask mantissas
-//!      from the price + dynamic floor + (optional) Pyth bid / ask.
+//!      from the price + widened floor + (optional) Pyth bid / ask.
 //!   3. The bot pushes those mantissas (plus its own dynamic fee) on-chain.
 
 /// Compute effective bid / ask mantissas for the pool's quote.
@@ -75,23 +75,6 @@ pub fn compute_effective_bid_ask_mantissas(
     Some((bid as i64, ask as i64))
 }
 
-/// Fresh quotes already have a hard 10s freshness gate, so keep the
-/// time-based widening intentionally gentle:
-/// - first 1s of age: no extra spread
-/// - after that: +1 bps of total spread per full second of age
-/// - cap the age bump at +9 bps total
-pub const AGE_SPREAD_FREE_WINDOW_US: u64 = 1_000_000;
-pub const AGE_SPREAD_BPS_PER_SECOND: u64 = 1;
-pub const MAX_AGE_SPREAD_BPS: u64 = 9;
-
-pub fn compute_age_adjusted_min_spread_bps(min_spread_bps: u16, payload_age_us: u64) -> u16 {
-    let aged_seconds = payload_age_us.saturating_sub(AGE_SPREAD_FREE_WINDOW_US) / 1_000_000;
-    let extra_bps = aged_seconds
-        .saturating_mul(AGE_SPREAD_BPS_PER_SECOND)
-        .min(MAX_AGE_SPREAD_BPS);
-    min_spread_bps.saturating_add(extra_bps as u16)
-}
-
 /// Apply a gentle confidence-driven bump to the configured minimum spread.
 /// Confidence is interpreted as basis points of price and capped to avoid
 /// making the pool non-competitive during extreme or pathological payloads.
@@ -122,17 +105,6 @@ pub fn compute_confidence_adjusted_min_spread_bps(
 
     min_spread_bps.saturating_add(confidence_spread_bps as u16)
 }
-
-pub fn compute_dynamic_min_spread_bps(
-    min_spread_bps: u16,
-    payload_age_us: u64,
-    confidence_mantissa: Option<i64>,
-    price_mantissa: i64,
-) -> u16 {
-    let age_adjusted = compute_age_adjusted_min_spread_bps(min_spread_bps, payload_age_us);
-    compute_confidence_adjusted_min_spread_bps(age_adjusted, confidence_mantissa, price_mantissa)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -226,29 +198,6 @@ mod tests {
         assert_eq!(bid, 15_968_000_000);
     }
 
-    // ---- age widening --------------------------------------------------------
-
-    #[test]
-    fn age_adjusted_spread_fresh_payload_unchanged() {
-        assert_eq!(compute_age_adjusted_min_spread_bps(40, 0), 40);
-        assert_eq!(compute_age_adjusted_min_spread_bps(40, 999_999), 40);
-        assert_eq!(compute_age_adjusted_min_spread_bps(40, 1_000_000), 40);
-    }
-
-    #[test]
-    fn age_adjusted_spread_widens_gently_with_age() {
-        // First full second after the 1s grace window adds 1 bps.
-        assert_eq!(compute_age_adjusted_min_spread_bps(40, 2_000_000), 41);
-        // 5.4s old => 4 full seconds beyond grace => +4 bps.
-        assert_eq!(compute_age_adjusted_min_spread_bps(40, 5_400_000), 44);
-    }
-
-    #[test]
-    fn age_adjusted_spread_caps_before_staleness_cutoff() {
-        assert_eq!(compute_age_adjusted_min_spread_bps(40, 10_000_000), 49);
-        assert_eq!(compute_age_adjusted_min_spread_bps(40, 60_000_000), 49);
-    }
-
     // ---- confidence widening -------------------------------------------------
 
     #[test]
@@ -291,15 +240,6 @@ mod tests {
         assert_eq!(
             compute_confidence_adjusted_min_spread_bps(40, Some(i64::MAX), SOL_MID),
             60
-        );
-    }
-
-    #[test]
-    fn dynamic_min_spread_combines_age_and_confidence() {
-        // 5.4s old => +4 bps from age. 10 bps confidence => +10 bps from confidence.
-        assert_eq!(
-            compute_dynamic_min_spread_bps(40, 5_400_000, Some(10 * SOL_1_BPS), SOL_MID),
-            54
         );
     }
 

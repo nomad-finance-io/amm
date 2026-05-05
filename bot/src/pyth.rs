@@ -51,7 +51,10 @@ async fn run(cfg: Config, tx: watch::Sender<Option<LatestQuote>>) -> Result<()> 
         .build()
         .context("failed to build Pyth Lazer stream client")?;
 
-    let mut stream = client.start().await.context("failed to start Pyth Lazer stream")?;
+    let mut stream = client
+        .start()
+        .await
+        .context("failed to start Pyth Lazer stream")?;
 
     let request = SubscribeRequest {
         subscription_id: SubscriptionId(1),
@@ -84,7 +87,9 @@ async fn run(cfg: Config, tx: watch::Sender<Option<LatestQuote>>) -> Result<()> 
 
     while let Some(msg) = stream.recv().await {
         if let AnyResponse::Json(WsResponse::StreamUpdated(update)) = msg {
-            let Some(parsed) = update.payload.parsed else { continue };
+            let Some(parsed) = update.payload.parsed else {
+                continue;
+            };
 
             for feed in parsed.price_feeds {
                 if feed.price_feed_id != feed_id {

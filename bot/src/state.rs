@@ -1,13 +1,15 @@
 use anyhow::{bail, Context, Result};
+use nomad_amm::curve::fees::FEE_RATE_DENOMINATOR_VALUE;
 use solana_sdk::pubkey::Pubkey;
 
 #[derive(Debug, Clone, Copy)]
 pub struct PoolCache {
     pub min_spread_bps: u16,
+    pub base_trade_fee_rate: u64,
 }
 
 /// Fetch `PoolState` once at startup, validate that this bot is the right
-/// keeper for it, and pull the spread floor we will reuse on every tick.
+/// keeper for it, and pull the pool/config values we will reuse on every tick.
 ///
 /// Validations:
 /// - `pool_state.oracle_keeper == signer` — otherwise our pushes will fail
@@ -32,6 +34,7 @@ pub fn load_blocking(
 
     // Copy fields out of the packed struct before referencing them — direct
     // references into a `repr(C, packed)` struct are UB when misaligned.
+    let amm_config = pool_state.amm_config;
     let pool_oracle_keeper = pool_state.oracle_keeper;
     let pool_feed_id = pool_state.pyth_price_feed_id;
     let min_spread_bps = pool_state.min_spread_bps;
@@ -50,7 +53,22 @@ pub fn load_blocking(
         bail!("pool has min_spread_bps = 0; refusing to push (would quote at mid)");
     }
 
-    Ok(PoolCache { min_spread_bps })
+    let amm_config_data = rpc
+        .get_account_data(&amm_config)
+        .with_context(|| format!("failed to fetch amm_config account {amm_config}"))?;
+    let amm_config_state = decode_amm_config(&amm_config_data)?;
+    let base_trade_fee_rate = amm_config_state.trade_fee_rate;
+
+    if base_trade_fee_rate >= FEE_RATE_DENOMINATOR_VALUE {
+        bail!(
+            "amm_config.trade_fee_rate ({base_trade_fee_rate}) must be < {FEE_RATE_DENOMINATOR_VALUE}"
+        );
+    }
+
+    Ok(PoolCache {
+        min_spread_bps,
+        base_trade_fee_rate,
+    })
 }
 
 fn decode_pool_state(data: &[u8]) -> Result<nomad_amm::states::PoolState> {
@@ -58,4 +76,11 @@ fn decode_pool_state(data: &[u8]) -> Result<nomad_amm::states::PoolState> {
     let mut slice: &[u8] = data;
     nomad_amm::states::PoolState::try_deserialize(&mut slice)
         .context("pool account data did not deserialize into PoolState")
+}
+
+fn decode_amm_config(data: &[u8]) -> Result<nomad_amm::states::AmmConfig> {
+    use anchor_lang::AccountDeserialize;
+    let mut slice: &[u8] = data;
+    nomad_amm::states::AmmConfig::try_deserialize(&mut slice)
+        .context("amm_config account data did not deserialize into AmmConfig")
 }

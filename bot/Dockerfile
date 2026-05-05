@@ -5,7 +5,7 @@
 #
 #   docker build -f bot/Dockerfile -t raydium-bot .
 #
-FROM rust:1.83-slim-bookworm AS builder
+FROM rust:1.95-slim-bookworm AS builder
 WORKDIR /workspace
 
 RUN apt-get update \
@@ -16,15 +16,19 @@ RUN apt-get update \
 COPY programs/cp-swap programs/cp-swap
 COPY client client
 
-# Stage 1: prime the dep cache with a stub bot main.
+# Copy the lockfile before building so Docker uses the checked-in dependency
+# graph instead of resolving against whatever crates.io serves that day.
 COPY bot/Cargo.toml bot/Cargo.toml
+COPY bot/Cargo.lock bot/Cargo.lock
+
+# Stage 1: prime the dep cache with a stub bot main.
 RUN mkdir -p bot/src && echo 'fn main() {}' > bot/src/main.rs \
- && cargo build --manifest-path bot/Cargo.toml --release \
+ && cargo build --manifest-path bot/Cargo.toml --release --locked \
  && rm -rf bot/src bot/target/release/deps/bot* bot/target/release/bot*
 
 # Stage 2: real source.
 COPY bot/src bot/src
-RUN cargo build --manifest-path bot/Cargo.toml --release
+RUN cargo build --manifest-path bot/Cargo.toml --release --locked
 
 FROM gcr.io/distroless/cc-debian12:nonroot
 WORKDIR /app

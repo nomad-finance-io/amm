@@ -1,7 +1,9 @@
-//! Per-interval orchestration: read latest Lazer quote → compute confidence-only
-//! spread → compute effective bid/ask → push `update_pool_oracle`.
+//! Per-interval orchestration: read latest Lazer quote → widen spread by
+//! confidence → compute effective bid/ask + dynamic fee → push
+//! `update_pool_oracle`.
 
 use anyhow::{anyhow, Result};
+use nomad_amm::curve::fees::FEE_RATE_DENOMINATOR_VALUE;
 use solana_sdk::signature::Signature;
 use tokio::sync::watch;
 
@@ -31,7 +33,7 @@ pub async fn tick(
         .borrow()
         .ok_or_else(|| TickError::Transient("no Lazer quote received yet".to_string()))?;
 
-    let (effective_bid, effective_ask) = compute_effective(quote, cache.min_spread_bps)
+    let (effective_bid, effective_ask, dynamic_fee_rate) = compute_update_fields(quote, *cache)
         .map_err(|e| TickError::Transient(format!("oracle math rejected quote: {e}")))?;
 
     pusher::send(
@@ -39,7 +41,7 @@ pub async fn tick(
         effective_bid,
         effective_ask,
         quote.exponent,
-        /* dynamic_fee_rate */ 0,
+        dynamic_fee_rate,
     )
     .await
     .map_err(|e| match e {
@@ -49,25 +51,49 @@ pub async fn tick(
 }
 
 /// Compute the effective bid/ask mantissas to push, given a fresh Lazer quote
-/// and the pool's configured spread floor.
-///
-/// The age component of the off-chain spread math is intentionally skipped:
-/// the bot pushes a fresh quote on every interval tick, so payload age is
-/// always sub-second in steady state and `compute_age_adjusted_min_spread_bps`
-/// would be a no-op anyway.
-fn compute_effective(quote: LatestQuote, min_spread_bps: u16) -> Result<(i64, i64)> {
+/// and the pool / config values cached at startup.
+fn compute_update_fields(quote: LatestQuote, cache: PoolCache) -> Result<(i64, i64, u64)> {
     let spread_bps = client::oracle_math::compute_confidence_adjusted_min_spread_bps(
-        min_spread_bps,
+        cache.min_spread_bps,
         quote.confidence_mantissa,
         quote.price_mantissa,
     );
-    client::oracle_math::compute_effective_bid_ask_mantissas(
+    let (effective_bid, effective_ask) = client::oracle_math::compute_effective_bid_ask_mantissas(
         quote.price_mantissa,
         quote.best_bid_mantissa,
         quote.best_ask_mantissa,
         spread_bps,
     )
-    .ok_or_else(|| anyhow!("compute_effective_bid_ask_mantissas returned None for quote {quote:?}"))
+    .ok_or_else(|| {
+        anyhow!("compute_effective_bid_ask_mantissas returned None for quote {quote:?}")
+    })?;
+    let dynamic_fee_rate = compute_dynamic_fee_rate(
+        cache.base_trade_fee_rate,
+        quote.confidence_mantissa,
+        quote.price_mantissa,
+    );
+    Ok((effective_bid, effective_ask, dynamic_fee_rate))
+}
+
+const FEE_RATE_UNITS_PER_BPS: u64 = 100;
+
+fn compute_dynamic_fee_rate(
+    base_trade_fee_rate: u64,
+    confidence_mantissa: Option<i64>,
+    price_mantissa: i64,
+) -> u64 {
+    if price_mantissa <= 0 {
+        return base_trade_fee_rate.min(FEE_RATE_DENOMINATOR_VALUE.saturating_sub(1));
+    }
+
+    let confidence_bps = match confidence_mantissa {
+        Some(c) if c > 0 => ((c as u128) * 10_000 / (price_mantissa as u128)) as u64,
+        _ => 0,
+    };
+
+    base_trade_fee_rate
+        .saturating_add(confidence_bps.saturating_mul(FEE_RATE_UNITS_PER_BPS))
+        .min(FEE_RATE_DENOMINATOR_VALUE.saturating_sub(1))
 }
 
 #[cfg(test)]
@@ -87,7 +113,10 @@ mod tests {
     #[tokio::test]
     async fn tick_returns_transient_when_quote_unavailable() {
         let cfg = test_config();
-        let cache = PoolCache { min_spread_bps: 40 };
+        let cache = PoolCache {
+            min_spread_bps: 40,
+            base_trade_fee_rate: 2_500,
+        };
         let (_tx, rx) = watch::channel::<Option<LatestQuote>>(None);
 
         let result = tick(&cfg, &cache, &rx).await;
@@ -102,9 +131,14 @@ mod tests {
         // Same expectation as `client::oracle_math` test
         // `spread_floor_only_no_oracle_bid_ask`: 40 bps total → ±20 each side.
         let q = quote(16_000_000_000);
-        let (bid, ask) = compute_effective(q, 40).unwrap();
+        let cache = PoolCache {
+            min_spread_bps: 40,
+            base_trade_fee_rate: 2_500,
+        };
+        let (bid, ask, dynamic_fee_rate) = compute_update_fields(q, cache).unwrap();
         assert_eq!(bid, 15_968_000_000);
         assert_eq!(ask, 16_032_000_000);
+        assert_eq!(dynamic_fee_rate, 2_500);
     }
 
     #[test]
@@ -112,16 +146,25 @@ mod tests {
         // 10 bps confidence on a $160 mid bumps the floor from 40 → 50 bps total.
         let mut q = quote(16_000_000_000);
         q.confidence_mantissa = Some(16_000_000); // 10 bps of price
-        let (bid, ask) = compute_effective(q, 40).unwrap();
+        let cache = PoolCache {
+            min_spread_bps: 40,
+            base_trade_fee_rate: 2_500,
+        };
+        let (bid, ask, dynamic_fee_rate) = compute_update_fields(q, cache).unwrap();
         // 50 bps total = ±25 each side: 160 * 0.9975 = 159.60, 160 * 1.0025 = 160.40
         assert_eq!(bid, 15_960_000_000);
         assert_eq!(ask, 16_040_000_000);
+        assert_eq!(dynamic_fee_rate, 3_500);
     }
 
     #[test]
     fn compute_effective_rejects_non_positive_price() {
         let q = quote(0);
-        assert!(compute_effective(q, 40).is_err());
+        let cache = PoolCache {
+            min_spread_bps: 40,
+            base_trade_fee_rate: 2_500,
+        };
+        assert!(compute_update_fields(q, cache).is_err());
     }
 
     fn test_config() -> Config {

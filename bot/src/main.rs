@@ -42,7 +42,8 @@ async fn run() -> Result<()> {
     );
 
     // One-shot: validate this signer is the pool's oracle_keeper, that the
-    // env feed id matches the pool's, and cache `min_spread_bps`.
+    // env feed id matches the pool's, and cache the pool/config fields the
+    // quote math needs on every tick.
     let cache = {
         let cfg = cfg.clone();
         tokio::task::spawn_blocking(move || {
@@ -50,7 +51,11 @@ async fn run() -> Result<()> {
         })
         .await??
     };
-    tracing::info!(min_spread_bps = cache.min_spread_bps, "pool validated");
+    tracing::info!(
+        min_spread_bps = cache.min_spread_bps,
+        base_trade_fee_rate = cache.base_trade_fee_rate,
+        "pool validated"
+    );
 
     // Background: Pyth Lazer subscriber feeds latest quote into a watch cell.
     // It never sends a transaction.

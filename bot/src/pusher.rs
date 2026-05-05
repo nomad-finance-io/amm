@@ -96,4 +96,3 @@ fn classify_error(err: anchor_client::ClientError) -> PushError {
         PushError::Transient(s)
     }
 }
-
