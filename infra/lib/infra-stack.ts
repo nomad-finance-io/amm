@@ -13,7 +13,7 @@ interface NomadStackProps extends cdk.StackProps {
   pythFeedId: string;
   poolId: string;
   intervalMs: string;
-  heliusApiKeySecretName: string;
+  solanaRpcUrlSecretName: string;
   privateKeySecretName: string;
   pythLazerTokenSecretName: string;
   cpu?: number;
@@ -31,10 +31,10 @@ export class InfraStack extends cdk.Stack {
 
     const cluster = new ecs.Cluster(this, 'Cluster', { vpc });
 
-    const heliusApiKey = secretsmanager.Secret.fromSecretNameV2(
+    const solanaRpcUrl = secretsmanager.Secret.fromSecretNameV2(
       this,
-      'HeliusApiKeySecret',
-      props.heliusApiKeySecretName,
+      'SolanaRpcUrl',
+      props.solanaRpcUrlSecretName,
     );
     const privateKey = secretsmanager.Secret.fromSecretNameV2(
       this,
@@ -78,7 +78,7 @@ export class InfraStack extends cdk.Stack {
         INTERVAL_MS: props.intervalMs,
       },
       secrets: {
-        HELIUS_API_KEY: ecs.Secret.fromSecretsManager(heliusApiKey),
+        SOLANA_RPC_URL: ecs.Secret.fromSecretsManager(solanaRpcUrl),
         PRIVATE_KEY: ecs.Secret.fromSecretsManager(privateKey),
         PYTH_LAZER_TOKEN: ecs.Secret.fromSecretsManager(pythLazerToken),
       },

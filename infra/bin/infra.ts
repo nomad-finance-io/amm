@@ -24,8 +24,8 @@ new InfraStack(app, 'NomadEcsStack', {
   pythFeedId: requireEnv('PYTH_FEED_ID'),
   poolId: requireEnv('POOL_ID'),
   intervalMs: requireEnv('INTERVAL_MS'),
-  heliusApiKeySecretName:
-    process.env.HELIUS_API_KEY_SECRET_NAME ?? 'nomad/HELIUS_API_KEY',
+  solanaRpcUrlSecretName:
+    process.env.SOLANA_RPC_URL_SECRET_NAME ?? 'nomad/SOLANA_RPC_URL',
   privateKeySecretName:
     process.env.PRIVATE_KEY_SECRET_NAME ?? 'nomad/PRIVATE_KEY',
   pythLazerTokenSecretName:
