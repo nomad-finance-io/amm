@@ -18,7 +18,7 @@ pub struct Config {
 
 impl Config {
     pub fn from_env() -> Result<Self> {
-        let helius_api_key = require("HELIUS_API_KEY")?;
+        let solana_rpc_url = require("SOLANA_RPC_URL")?;
         let private_key = require("PRIVATE_KEY")?;
         let lazer_token = require("PYTH_LAZER_TOKEN")?;
         let channel = require("PYTH_CHANNEL")?;
@@ -43,11 +43,7 @@ impl Config {
         let keypair = Arc::new(decode_keypair(&private_key)?);
 
         let cluster = env::var("CLUSTER").unwrap_or_else(|_| "mainnet".to_string());
-        let rpc_url = match cluster.as_str() {
-            "mainnet" => format!("https://mainnet.helius-rpc.com/?api-key={helius_api_key}"),
-            "devnet" => format!("https://devnet.helius-rpc.com/?api-key={helius_api_key}"),
-            other => bail!("CLUSTER must be 'mainnet' or 'devnet', got: {other}"),
-        };
+        let rpc_url = env::var("SOLANA_RPC_URL").unwrap();
 
         let compute_unit_price_micro_lamports: u64 = env::var("PRIORITY_FEE_MICRO_LAMPORTS")
             .ok()

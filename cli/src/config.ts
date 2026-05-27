@@ -64,16 +64,11 @@ export interface CliConfig {
  */
 export function resolveConfig(flags: CliFlags): CliConfig {
   const solanaCli = readSolanaCliConfig();
-  let httpUrl = solanaCli.jsonRpcUrl ?? "https://api.mainnet-beta.solana.com";
+  let httpUrl = process.env.SOLANA_RPC_URL?.trim();
   let wsUrl = solanaCli.websocketUrl;
   let payerPath = expandHome(solanaCli.keypairPath ?? DEFAULT_KEYPAIR);
   let adminPath = payerPath;
   let programId = new PublicKey((idl as { address: string }).address);
-
-  const heliusKey = process.env.HELIUS_API_KEY?.trim();
-  if (heliusKey) {
-    httpUrl = `https://mainnet.helius-rpc.com/?api-key=${heliusKey}`;
-  }
 
   if (flags.config) {
     const absPath = path.resolve(flags.config);
